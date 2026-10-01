@@ -116,6 +116,13 @@ public:
     static constexpr uint32_t kMSR_PSTATE_STAT = 0xC0010063;
     static constexpr uint32_t kMSR_PSTATE_CTL = 0xC0010062;
     static constexpr uint32_t kMSR_RAPL_PWR_UNIT = 0xC0010299;
+
+    //Fallback governor thresholds (retired instructions per second, per
+    //logical core). Frequency-independent: an idle core retires <0.1G inst/s,
+    //a busy core >1G inst/s regardless of the current P-state.
+    static constexpr float kGovBusyRate = 3e8f;
+    static constexpr float kGovQuietRate = 1e8f;
+    static constexpr uint32_t kGovQuietTicks = 4;
     static constexpr uint32_t kMSR_MPERF = 0x000000E7;
     static constexpr uint32_t kMSR_APERF = 0x000000E8;
     static constexpr uint32_t kMSR_PERF_CTL_0 = 0xC0010000;
@@ -216,6 +223,7 @@ public:
     
     uint8_t PStateCur_perCore[CPUInfo::MaxCpus];
     uint8_t PStateCtl = 0;
+    uint32_t govLowTicks = 0;
     uint64_t PStateDef_perCore[8];
     uint8_t PStateEnabledLen = 0;
     float PStateDefClock_perCore[8];
