@@ -48,9 +48,18 @@ bool AMDRyzenCPUPMUserClient::start(IOService *provider){
 
 void AMDRyzenCPUPMUserClient::stop(IOService *provider){
     IOLog("AMDCPUSupportUserClient::stop\n");
-    
+
     fProvider = nullptr;
     IOService::stop(provider);
+}
+
+//Without this, every open/close (or process exit) leaked one user client
+//instance until the UC slots were exhausted and IOServiceOpen failed.
+IOReturn AMDRyzenCPUPMUserClient::clientClose(){
+    if(!isInactive())
+        terminate();
+
+    return kIOReturnSuccess;
 }
 
 //this is a meme, not getting the joke? nvm.
