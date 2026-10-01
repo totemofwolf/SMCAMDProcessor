@@ -7,7 +7,18 @@
 
 #include "AMDRyzenCPUPMUserClient.hpp"
 
+#include <IOKit/acpi/IOACPIPlatformExpert.h>
 
+//getACPITableData is protected; launder access through a transparent
+//subclass (no extra members, never constructed - reinterpreted pointer).
+class ACPIExpertTableAccessor : public IOACPIPlatformExpert {
+public:
+    const OSData *table(const char *sig, UInt32 instance) {
+        return IOACPIPlatformExpert::getACPITableData(sig, instance);
+    }
+};
+
+static IOService *gAcpiExpert = nullptr;
 
 OSDefineMetaClassAndStructors(AMDRyzenCPUPMUserClient, IOUserClient);
 
@@ -431,6 +442,35 @@ IOReturn AMDRyzenCPUPMUserClient::externalMethod(uint32_t selector, IOExternalMe
             break;
         }
         
+        //Get ACPI table by signature (DSDT/SSDT/FACP/...)
+        //scalarInput: [0..3] = signature chars, [4] = table instance
+        //structureOutput = raw table bytes (caller must size the buffer)
+        case 20: {
+            if(arguments->scalarInputCount != 5)
+                return kIOReturnBadArgument;
+
+            if(!gAcpiExpert)
+                gAcpiExpert = IOService::waitForMatchingService(
+                    IOService::serviceMatching("AppleACPIPlatformExpert"),
+                    5ULL * 1000ULL * 1000ULL * 1000ULL);
+            if(!gAcpiExpert || !gAcpiExpert->metaCast("IOACPIPlatformExpert"))
+                return kIOReturnUnsupported;
+
+            char sig[5] = {(char)arguments->scalarInput[0],
+                           (char)arguments->scalarInput[1],
+                           (char)arguments->scalarInput[2],
+                           (char)arguments->scalarInput[3], 0};
+            auto *expert = reinterpret_cast<ACPIExpertTableAccessor *>(gAcpiExpert);
+            const OSData *data = expert->table(sig, (UInt32)arguments->scalarInput[4]);
+            if(!data) return kIOReturnNotFound;
+
+            UInt32 len = (UInt32)data->getLength();
+            if(arguments->structureOutputSize < len) return kIOReturnNoSpace;
+            memcpy(arguments->structureOutput, data->getBytesNoCopy(), len);
+            arguments->structureOutputSize = len;
+            break;
+        }
+
         //Try load SMC driver
         case 90: {
             
