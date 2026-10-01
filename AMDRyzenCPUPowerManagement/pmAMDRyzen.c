@@ -139,7 +139,7 @@ void pmRyzen_doPState_reset(){
 
 void pmRyzen_PState_reset(){
     pmRyzen_hpcpus = 0;
-    if(pmRyzen_pstatelimit == 0) pmRyzen_pstatelimit = 1;
+    if(pmRyzen_pstatelimit == 0) pmRyzen_pstatelimit = PSTATE_LIMIT;
     mp_rendezvous_no_intrs(&pmRyzen_doPState_reset, NULL);
 }
 

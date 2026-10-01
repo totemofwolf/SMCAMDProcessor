@@ -27,11 +27,15 @@
 #define MSR_PSTATE_0 0xC0010064
 
 #define EFF_INTERVAL 0.15
-#define PSTATE_LIMIT 1
+//Mobile APUs (Cezanne etc.): allow the governor to request the deep P-state
+//(P2 = ~1.2GHz on 5800H) instead of clamping to P1, and let cores leave P0
+//within a few quiet windows (the stock 16 + hpcpus*5 never triggers on a
+//desktop with background load, pinning every core at base clock -> 90C).
+#define PSTATE_LIMIT 2
 #define PSTATE_STEPDOWN_THRE 0.12
 #define PSTATE_STEPUP_THRE 0.38
-#define PSTATE_STEPDOWN_TIME 16
-#define PSTATE_STEPDOWN_MP_GAIN 5
+#define PSTATE_STEPDOWN_TIME 4
+#define PSTATE_STEPDOWN_MP_GAIN 0
 
 
 extern int cpu_number(void);
