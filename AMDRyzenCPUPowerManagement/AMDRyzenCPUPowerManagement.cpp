@@ -189,7 +189,44 @@ void AMDRyzenCPUPowerManagement::initWorkLoop() {
         //Read stats from package.
         provider->updatePackageTemp();
         provider->updatePackageEnergy();
-        
+
+        //Fallback package governor: drive the P-state request from retired
+        //instruction rates. The idle-hook accounting in pmRyzen_machine_idle
+        //never runs on systems where the idle path does not route through our
+        //pmDispatch (observed on Cezanne laptops with another dispatch owner
+        //present), which pinned every core at P0 (~24W, ~90C at desktop idle
+        //on a 5800H). Instruction rate is frequency-independent, so this
+        //governs correctly even while cores are parked in a low P-state.
+        {
+            float dt = provider->actualUpdateTimeInterval * 0.001f;
+            if(dt > 0.001f && dt < 5.f){
+                bool anyBusy = false, allQuiet = true;
+                for(uint32_t cn = 0; cn < provider->totalNumberOfLogicalCores; cn++){
+                    float rate = (float)((double)provider->instructionDelta_perCore[cn] / dt);
+                    if(rate > kGovBusyRate) anyBusy = true;
+                    if(rate > kGovQuietRate) allQuiet = false;
+                }
+                uint32_t limit = provider->getPMPStateLimit();
+                if(limit > 0){
+                    uint8_t want = provider->PStateCtl;
+                    if(anyBusy){
+                        want = 0;
+                        provider->govLowTicks = 0;
+                    } else if(allQuiet){
+                        if(++provider->govLowTicks > kGovQuietTicks) want = (uint8_t)min(2u, limit);
+                    } else {
+                        provider->govLowTicks = 0;
+                        want = 1;
+                    }
+                    want = (uint8_t)min((uint32_t)want, limit);
+                    if(want != provider->PStateCtl){
+                        provider->PStateCtl = want;
+                        provider->applyPowerControl();
+                    }
+                }
+            }
+        }
+
 
         
         uint32_t now = uint32_t(getCurrentTimeNs() / 1000000); //ms
